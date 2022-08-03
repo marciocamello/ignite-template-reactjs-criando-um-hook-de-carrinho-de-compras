@@ -49,36 +49,59 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     const addProduct = async (productId: number) => {
         try {
 
-            const response = await api.get(`/products/${productId}`);
-            const product = response.data;
+            const updatedCart = [...cart];
 
-            const productInCart = cart.find(p => p.id === productId);
+            const product = updatedCart.find(p => p.id === productId);
 
-            if (productInCart) {
-                setCart(
-                    cart.map(p =>
-                        p.id === productId ? { ...product, quantity: p.amount + 1 } : p
-                    )
-                );
-            } else {
-                setCart([...cart, { ...product, amount: 1 }]);
+            const stock = await api.get<Stock>(`/stock/${productId}`);
+
+            const stockAmount = stock.data.amount;
+            const currentAmmout = product?.amount ?? 0;
+            const ammount = currentAmmout + 1;
+
+            if (ammount > stockAmount) {
+                toast.error('Quantidade solicitada fora de estoque');
+                return;
             }
+
+            if (product) {
+                product.amount = ammount;
+            } else {
+                const response = await api.get<Product>(`/products/${productId}`);
+                const newProduct = {
+                    ...response.data,
+                    amount: 1,
+                }
+
+                updatedCart.push(newProduct);
+            }
+
+            setCart(updatedCart);
 
             toast.success('Produto adicionado ao carrinho');
         } catch {
 
-            toast.error('Erro ao adicionar o produto ao carrinho');
+            toast.error('Erro na adição do produto');
         }
     };
 
     const removeProduct = (productId: number) => {
         try {
 
-            setCart(cart.filter(p => p.id !== productId));
-            toast.success('Produto removido do carrinho');
+            const updatedCart = [...cart];
+            const productIndex = updatedCart.findIndex(p => p.id === productId);
+
+            if (productIndex >= 0) {
+                updatedCart.splice(productIndex, 1);
+                setCart(updatedCart);
+                toast.success('Produto removido do carrinho');
+            } else {
+                throw Error();
+            }
+
         } catch {
 
-            toast.error('Erro ao remover o produto do carrinho');
+            toast.error('Erro na remoção do produto');
         }
     };
 
@@ -92,24 +115,27 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
                 return;
             }
 
-            const response = await api.get(`/products/${productId}`);
-            const product = response.data.amount;
+            const stock = await api.get<Stock>(`/stock/${productId}`);
 
-            if (product < amount) {
-                toast.error('Não temos tantos produtos no estoque');
+            const stockAmount = stock.data.amount;
+
+            if (amount > stockAmount) {
+                toast.error('Quantidade solicitada fora de estoque');
                 return;
             }
 
-            setCart(state => {
-                return state.map(p =>
-                    p.id === productId ? { ...p, amount } : p
-                );
-            });
+            const updatedCart = [...cart];
+            const product = updatedCart.find(p => p.id === productId);
+
+            if (product) {
+                product.amount = amount;
+                setCart(updatedCart);
+            }
 
             toast.success('Produto atualizado no carrinho');
         } catch {
 
-            toast.error('Erro ao atualizar o produto do carrinho');
+            toast.error('Erro na alteração de quantidade do produto');
         }
     };
 
